@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MisBienes — Control de bienes a tu cargo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── TOKENS ────────────────────────────────────────────────── */
+:root{
+  --ink:#0f1f1c; --ink2:#3d5a54; --ink3:#6b8a84;
+  --teal:#0e6659; --teal2:#0a4d42; --teal3:#e0f2ef;
+  --amber:#d97706; --amber-bg:#fef3c7;
+  --red:#b91c1c; --red-bg:#fee2e2;
+  --paper:#f5f7f5; --card:#fff; --line:#dde8e6;
+  --sans:'Inter',system-ui,sans-serif;
+  --display:'Barlow Condensed',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --r:10px; --r2:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:16px;line-height:1.6}
+
+/* ── UTILITARIOS ───────────────────────────────────────────── */
+.hidden{display:none!important}
+.mono{font-family:var(--mono)}
+.muted{color:var(--ink2);font-size:14px}
+.tag{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:.4px}
+.tag-gratis{background:var(--teal3);color:var(--teal2)}
+.tag-pro{background:#fef9c3;color:#854d0e}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:var(--r);font-size:14px;font-weight:500;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+.toast.err{background:var(--red)}
+
+/* ── BOTONES ───────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border:none;border-radius:var(--r);font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;transition:filter .15s,transform .1s;text-decoration:none}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-ghost{background:transparent;color:var(--teal);border:1.5px solid var(--teal)}
+.btn-ghost:hover{background:var(--teal3)}
+.btn-amber{background:var(--amber);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-sm{padding:7px 14px;font-size:13px}
+.btn-full{width:100%;justify-content:center}
+
+/* ── FORMULARIOS ───────────────────────────────────────────── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--r);font-family:var(--sans);font-size:15px;color:var(--ink);background:var(--card);transition:border-color .2s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--teal)}
+.field.err input,.field.err select{border-color:var(--red)}
+.field .hint{font-size:12px;color:var(--ink3);margin-top:4px}
+.field .errtxt{font-size:12px;color:var(--red);margin-top:4px;display:none}
+.field.err .errtxt{display:block}
+
+/* ═══════════════════════════════════════════════════════════
+   SECCIÓN 1: LANDING PAGE
+═══════════════════════════════════════════════════════════ */
+#view-landing{min-height:100vh}
+
+/* Nav landing */
+.land-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+.land-logo{font-family:var(--display);font-size:22px;font-weight:800;color:var(--teal);letter-spacing:1px}
+.land-logo span{color:var(--amber)}
+.land-nav-links{display:flex;gap:10px;align-items:center}
+
+/* Hero */
+.hero{background:var(--ink);color:#fff;padding:64px 24px 56px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,.03) 39px,rgba(255,255,255,.03) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,.03) 39px,rgba(255,255,255,.03) 40px)}
+.hero-eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--teal3);text-transform:uppercase;margin-bottom:20px}
+.hero-ticker{font-family:var(--display);font-size:clamp(52px,12vw,96px);font-weight:800;color:#fff;line-height:1;letter-spacing:-1px;margin-bottom:8px}
+.hero-ticker-label{font-family:var(--mono);font-size:13px;color:var(--ink3);letter-spacing:1px;margin-bottom:32px}
+.hero-h1{font-family:var(--display);font-size:clamp(26px,5vw,42px);font-weight:700;line-height:1.2;margin-bottom:16px;max-width:600px;margin-left:auto;margin-right:auto}
+.hero-h1 em{font-style:normal;color:var(--amber)}
+.hero-sub{font-size:17px;color:#aac9c4;max-width:480px;margin:0 auto 36px}
+.hero-cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* Sección dolor */
+.dolor{background:var(--amber-bg);border-top:3px solid var(--amber);padding:36px 24px;text-align:center}
+.dolor p{font-size:17px;color:#78350f;max-width:580px;margin:0 auto;line-height:1.7}
+.dolor strong{color:#92400e}
+
+/* Beneficios */
+.beneficios{padding:56px 24px;max-width:900px;margin:0 auto}
+.beneficios h2{font-family:var(--display);font-size:clamp(28px,5vw,40px);font-weight:700;text-align:center;margin-bottom:8px}
+.beneficios .sub{text-align:center;color:var(--ink2);margin-bottom:40px}
+.ben-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px}
+.ben-card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r2);padding:24px;transition:border-color .2s,transform .2s}
+.ben-card:hover{border-color:var(--teal);transform:translateY(-3px)}
+.ben-icon{font-size:28px;margin-bottom:12px}
+.ben-card h3{font-family:var(--display);font-size:20px;font-weight:700;margin-bottom:6px}
+.ben-card p{font-size:14px;color:var(--ink2);line-height:1.6}
+
+/* Precios */
+.precios{background:var(--card);padding:56px 24px;border-top:1px solid var(--line)}
+.precios h2{font-family:var(--display);font-size:clamp(28px,5vw,40px);font-weight:700;text-align:center;margin-bottom:8px}
+.precios .sub{text-align:center;color:var(--ink2);margin-bottom:40px}
+.price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:640px;margin:0 auto}
+.price-card{border:1.5px solid var(--line);border-radius:var(--r2);padding:28px;text-align:center}
+.price-card.featured{border-color:var(--teal);border-width:2px;position:relative}
+.price-card.featured::before{content:'Más popular';position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--teal);color:#fff;font-size:12px;font-weight:600;padding:3px 14px;border-radius:20px;white-space:nowrap}
+.price-name{font-family:var(--display);font-size:22px;font-weight:700;margin-bottom:4px}
+.price-amount{font-family:var(--display);font-size:48px;font-weight:800;color:var(--teal);line-height:1}
+.price-period{font-size:13px;color:var(--ink3);margin-bottom:20px}
+.price-features{text-align:left;margin-bottom:24px;list-style:none}
+.price-features li{font-size:14px;padding:5px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start}
+.price-features li::before{content:'✓';color:var(--teal);font-weight:700;flex-shrink:0}
+.price-features li.no::before{content:'–';color:var(--ink3)}
+.price-features li.no{color:var(--ink3)}
+
+/* Footer landing */
+.land-footer{text-align:center;padding:28px 24px;font-size:13px;color:var(--ink3);border-top:1px solid var(--line)}
+
+/* ═══════════════════════════════════════════════════════════
+   SECCIÓN 2: AUTH (login / registro)
+═══════════════════════════════════════════════════════════ */
+#view-auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--paper)}
+.auth-card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r2);padding:36px 32px;width:100%;max-width:420px}
+.auth-logo{font-family:var(--display);font-size:26px;font-weight:800;color:var(--teal);text-align:center;margin-bottom:4px}
+.auth-logo span{color:var(--amber)}
+.auth-sub{text-align:center;font-size:14px;color:var(--ink2);margin-bottom:28px}
+.auth-tabs{display:flex;border:1.5px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:24px}
+.auth-tab{flex:1;padding:10px;font-size:14px;font-weight:600;background:none;border:none;cursor:pointer;color:var(--ink2);transition:background .2s,color .2s}
+.auth-tab.active{background:var(--teal);color:#fff}
+.auth-divider{text-align:center;color:var(--ink3);font-size:13px;margin:16px 0;position:relative}
+.auth-divider::before,.auth-divider::after{content:'';position:absolute;top:50%;width:40%;height:1px;background:var(--line)}
+.auth-divider::before{left:0} .auth-divider::after{right:0}
+.auth-back{display:block;text-align:center;margin-top:16px;font-size:13px;color:var(--ink2);cursor:pointer}
+.auth-back:hover{color:var(--teal)}
+
+/* ═══════════════════════════════════════════════════════════
+   SECCIÓN 3: APP PRINCIPAL
+═══════════════════════════════════════════════════════════ */
+#view-app{min-height:100vh;display:flex;flex-direction:column}
+
+/* App header */
+.app-header{background:var(--teal2);color:#fff;padding:0 20px;display:flex;align-items:center;gap:12px;height:54px;position:sticky;top:0;z-index:30}
+.app-logo{font-family:var(--display);font-size:20px;font-weight:800;letter-spacing:.5px;flex:1}
+.app-logo span{color:var(--amber)}
+.app-plan-badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,.15)}
+.app-plan-badge.pro{background:rgba(217,119,6,.4);color:#fde68a}
+.app-user{font-size:13px;opacity:.8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-logout{background:rgba(255,255,255,.12);border:none;color:#fff;font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer}
+.btn-logout:hover{background:rgba(255,255,255,.22)}
+
+/* App nav (móvil abajo, escritorio arriba) */
+.app-nav{background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 0;position:sticky;bottom:0;z-index:30}
+@media(min-width:700px){
+  .app-nav{border-top:none;border-bottom:1px solid var(--line);top:54px;bottom:auto;padding:0 20px;justify-content:flex-start;gap:4px}
+  #view-app{padding-top:0}
+}
+.app-nav-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 14px;font-size:11px;font-weight:600;color:var(--ink3);cursor:pointer;border-bottom:3px solid transparent;transition:color .2s,border-color .2s}
+.app-nav-btn .ni{font-size:22px;line-height:1}
+.app-nav-btn.active{color:var(--teal);border-bottom-color:var(--teal)}
+@media(max-width:699px){.app-nav-btn{border-bottom:none;border-top:3px solid transparent}.app-nav-btn.active{border-top-color:var(--teal);border-bottom:none}}
+
+/* App content */
+.app-body{flex:1;padding:20px;max-width:1200px;margin:0 auto;width:100%}
+@media(min-width:700px){.app-body{padding:24px 28px}}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.kpi .v{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--ink)}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2);margin-top:2px}
+.kpi.warn .v{color:var(--amber)}
+.kpi.bad  .v{color:var(--red)}
+
+/* Panel */
+.panel{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:16px}
+.panel-title{font-family:var(--display);font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--teal2);margin-bottom:14px}
+
+/* Tabla */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;padding:8px 10px;background:#edf3f2;color:var(--ink2);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1.5px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:hover td{background:#f7faf9}
+.code-cell{font-family:var(--mono);font-size:12px;color:var(--ink2);word-break:break-all}
+.money{font-family:var(--mono);text-align:right;white-space:nowrap}
+
+/* Badges estado */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
+.b-good{background:#dcfce7;color:#166534}
+.b-reg {background:#fef9c3;color:#854d0e}
+.b-bad {background:var(--red-bg);color:var(--red)}
+.b-ctrl{background:#e0f2fe;color:#075985}
+
+/* Barra de vida útil */
+.lifebar{height:7px;background:#e4ebe9;border-radius:6px;overflow:hidden;min-width:80px}
+.lifebar i{display:block;height:100%;border-radius:6px}
+
+/* Toolbar */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.toolbar input[type=text],.toolbar select{padding:8px 11px;border:1.5px solid var(--line);border-radius:var(--r);font-family:var(--sans);font-size:14px;background:var(--card);flex:1;min-width:160px}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(10,30,27,.55);display:flex;align-items:flex-start;justify-content:center;padding:20px 16px;z-index:50;overflow-y:auto}
+.modal{background:var(--card);border-radius:var(--r2);max-width:720px;width:100%;padding:24px;position:relative;margin:auto}
+.modal h3{font-family:var(--display);font-size:20px;font-weight:700;color:var(--teal2);margin-bottom:4px}
+.modal .close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink2);line-height:1}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.form-grid .full{grid-column:1/-1}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+@media(max-width:500px){.form-grid{grid-template-columns:1fr}}
+
+/* Foto grid */
+.foto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:12px}
+.foto-thumb{position:relative;border-radius:var(--r);overflow:hidden;aspect-ratio:1;background:#eee;cursor:pointer}
+.foto-thumb img{width:100%;height:100%;object-fit:cover}
+.foto-thumb .del-foto{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:24px;height:24px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.foto-upload-btn{border:2px dashed var(--line);border-radius:var(--r);aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--ink3);font-size:13px;gap:6px;transition:border-color .2s}
+.foto-upload-btn:hover{border-color:var(--teal);color:var(--teal)}
+.foto-upload-btn .fi{font-size:28px}
+
+/* Plan Pro gate */
+.pro-gate{background:var(--amber-bg);border:1.5px dashed var(--amber);border-radius:var(--r);padding:16px;text-align:center;margin-top:10px}
+.pro-gate p{font-size:14px;color:#78350f;margin-bottom:10px}
+
+/* Alert */
+.alert-row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--r);margin-bottom:8px;font-size:13.5px}
+.alert-row.warn{background:var(--amber-bg)}
+.alert-row.bad{background:var(--red-bg)}
+
+/* Limit bar (plan gratis) */
+.limit-bar-wrap{margin-bottom:16px}
+.limit-bar-track{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0}
+.limit-bar-fill{height:100%;border-radius:6px;background:var(--teal);transition:width .5s}
+.limit-bar-fill.warn{background:var(--amber)}
+.limit-bar-fill.bad{background:var(--red)}
+
+/* ── RESPONSIVE HELPERS ────────────────────────────────────── */
+@media(max-width:699px){
+  #view-app{flex-direction:column}
+  .app-nav{order:3}
+  .app-body{order:2;padding-bottom:80px}
+}
+@media(max-width:480px){
+  .auth-card{padding:28px 20px}
+  .hero{padding:48px 16px 40px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOAST ═══════════════════════════════════════════════ -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     VIEW 1: LANDING PAGE
+═══════════════════════════════════════════════════════════ -->
+<div id="view-landing">
+  <nav class="land-nav">
+    <div class="land-logo">Mis<span>Bienes</span></div>
+    <div class="land-nav-links">
+      <button class="btn btn-ghost btn-sm" onclick="showAuth('login')">Ingresar</button>
+      <button class="btn btn-primary btn-sm" onclick="showAuth('register')">Registrarse gratis</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-eyebrow">Tu responsabilidad en números</div>
+    <div class="hero-ticker" id="ticker">$0</div>
+    <div class="hero-ticker-label">valor de bienes públicos a cargo del custodio promedio</div>
+    <h1 class="hero-h1">Si un bien se pierde, respondes <em>tú</em> — no la institución</h1>
+    <p class="hero-sub">MisBienes te da el historial, las fotos y las actas que necesitas para proteger tu carrera y tu patrimonio.</p>
+    <div class="hero-cta">
+      <button class="btn btn-amber" onclick="showAuth('register')">Empieza gratis — sin tarjeta</button>
+      <button class="btn btn-ghost" style="color:#aac9c4;border-color:#aac9c4" onclick="showAuth('login')">Ya tengo cuenta</button>
+    </div>
+  </section>
+
+  <section class="dolor">
+    <p>Cuando Contraloría llega, el custodio busca actas que firmó hace tres años, trata de recordar dónde quedó el equipo que se trasladó dos veces, y reza para que el bien no aparezca en el examen especial. <strong>Eso se puede evitar.</strong></p>
+  </section>
+
+  <section class="beneficios">
+    <h2>Tu inventario, tu defensa</h2>
+    <p class="sub">Importa tu reporte oficial en minutos. Desde ahí, todo queda registrado.</p>
+    <div class="ben-grid">
+      <div class="ben-card">
+        <div class="ben-icon">📄</div>
+        <h3>Importa el PDF oficial</h3>
+        <p>Sube el reporte "Control de Bienes por Usuario" de tu institución y tu inventario queda listo en segundos — sin digitar nada.</p>
+      </div>
+      <div class="ben-card">
+        <div class="ben-icon">📍</div>
+        <h3>Trazabilidad completa</h3>
+        <p>Cada traslado, entrega o cambio de ubicación queda registrado con fecha, documento de respaldo y quién lo autorizó.</p>
+      </div>
+      <div class="ben-card">
+        <div class="ben-icon">📷</div>
+        <h3>Foto como evidencia</h3>
+        <p>Registra el estado del bien con una foto desde el celular. En una constatación, una imagen vale más que mil palabras.</p>
+      </div>
+      <div class="ben-card">
+        <div class="ben-icon">⚠️</div>
+        <h3>Alertas de vida útil</h3>
+        <p>Sabe qué bienes están por vencer contablemente antes de que te lo digan en una auditoría. Anticipa, no reacciones.</p>
+      </div>
+      <div class="ben-card">
+        <div class="ben-icon">🔗</div>
+        <h3>Comparte con tu jefe</h3>
+        <p>Genera un enlace de solo lectura para que tu director o el auditor vea tu inventario sin necesidad de una cuenta.</p>
+      </div>
+      <div class="ben-card">
+        <div class="ben-icon">📊</div>
+        <h3>Exporta para Contraloría</h3>
+        <p>Descarga tu inventario en Excel o PDF con formato institucional — listo para presentar en cualquier constatación física.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="precios" id="precios">
+    <h2>Un precio justo</h2>
+    <p class="sub">Menos de lo que cuesta un café al mes. Más de lo que vale una glosa.</p>
+    <div class="price-grid">
+      <div class="price-card">
+        <div class="price-name">Gratis</div>
+        <div class="price-amount">$0</div>
+        <div class="price-period">siempre</div>
+        <ul class="price-features">
+          <li>Hasta 25 bienes</li>
+          <li>Importación PDF</li>
+          <li>Traslados e historial</li>
+          <li>Exportar con marca de agua</li>
+          <li class="no">Fotos por bien</li>
+          <li class="no">Alertas por correo</li>
+          <li class="no">Enlace para auditor</li>
+        </ul>
+        <button class="btn btn-ghost btn-full" onclick="showAuth('register')">Comenzar</button>
+      </div>
+      <div class="price-card featured">
+        <div class="price-name">Custodio Pro</div>
+        <div class="price-amount">$30</div>
+        <div class="price-period">al año · USD 2.50/mes</div>
+        <ul class="price-features">
+          <li>Bienes ilimitados</li>
+          <li>Importación PDF ilimitada</li>
+          <li>Traslados e historial</li>
+          <li>Exportar sin marca de agua</li>
+          <li>Fotos por bien (en Drive)</li>
+          <li>Alertas por correo</li>
+          <li>Enlace de solo lectura</li>
+        </ul>
+        <button class="btn btn-primary btn-full" onclick="showAuth('register')">Probar 30 días gratis</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="land-footer">
+    MisBienes · Ecuador · <a href="mailto:soporte@misbienes.ec" style="color:inherit">soporte@misbienes.ec</a>
+    · <span id="year"></span>
+  </footer>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     VIEW 2: AUTH (LOGIN / REGISTRO)
+═══════════════════════════════════════════════════════════ -->
+<div id="view-auth" class="hidden">
+  <div class="auth-card">
+    <div class="auth-logo">Mis<span>Bienes</span></div>
+    <p class="auth-sub" id="auth-sub">Controla tus bienes a cargo, protege tu carrera.</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login"    onclick="switchAuthTab('login')">Ingresar</button>
+      <button class="auth-tab"        id="tab-register" onclick="switchAuthTab('register')">Registrarse</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="form-login">
+      <div class="field"><label>Correo electrónico</label><input type="email" id="l-email" placeholder="tu@correo.com" autocomplete="email"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()">Ingresar</button>
+      <div class="auth-divider">¿Olvidaste tu contraseña?</div>
+      <button class="btn btn-ghost btn-full btn-sm" onclick="doReset()">Recuperar por correo</button>
+    </div>
+
+    <!-- REGISTRO -->
+    <div id="form-register" class="hidden">
+      <div class="field"><label>Nombre completo</label><input type="text" id="r-nombre" placeholder="Apellidos Nombres" autocomplete="name"></div>
+      <div class="field"><label>Correo electrónico</label><input type="email" id="r-email" placeholder="tu@correo.com" autocomplete="email"></div>
+      <div class="field"><label>Contraseña <span class="muted">(mín. 8 caracteres)</span></label><input type="password" id="r-pass" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="field"><label>Institución donde trabajas</label><input type="text" id="r-inst" placeholder="GAD Municipal, Ministerio…"></div>
+      <button class="btn btn-primary btn-full" onclick="doRegister()">Crear cuenta gratis</button>
+      <p class="muted" style="text-align:center;margin-top:12px;font-size:12px">Al registrarte aceptas los términos de servicio. Los datos son tuyos — siempre puedes exportarlos o eliminar tu cuenta.</p>
+    </div>
+
+    <a class="auth-back" onclick="showLanding()">← Volver al inicio</a>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     VIEW 3: APP PRINCIPAL
+═══════════════════════════════════════════════════════════ -->
+<div id="view-app" class="hidden">
+  <header class="app-header">
+    <div class="app-logo">Mis<span>Bienes</span></div>
+    <span class="app-plan-badge" id="plan-badge">Gratis</span>
+    <span class="app-user" id="app-user-name"></span>
+    <button class="btn-logout" onclick="doLogout()">Salir</button>
+  </header>
+
+  <nav class="app-nav">
+    <button class="app-nav-btn active" data-tab="panel"    onclick="appTab(this)"><span class="ni">📊</span>Panel</button>
+    <button class="app-nav-btn"        data-tab="bienes"   onclick="appTab(this)"><span class="ni">📦</span>Bienes</button>
+    <button class="app-nav-btn"        data-tab="traslados" onclick="appTab(this)"><span class="ni">🔄</span>Traslados</button>
+    <button class="app-nav-btn"        data-tab="mant"     onclick="appTab(this)"><span class="ni">🔧</span>Mantenimiento</button>
+    <button class="app-nav-btn"        data-tab="reportes" onclick="appTab(this)"><span class="ni">⬇</span>Exportar</button>
+  </nav>
+
+  <main class="app-body">
+    <!-- PANEL -->
+    <section id="at-panel">
+      <div class="limit-bar-wrap hidden" id="limit-wrap">
+        <div class="muted" id="limit-txt"></div>
+        <div class="limit-bar-track"><div class="limit-bar-fill" id="limit-bar"></div></div>
+        <button class="btn btn-amber btn-sm" style="margin-top:6px" onclick="showUpgrade()">Actualizar a Pro — $30/año</button>
+      </div>
+      <div class="kpis" id="kpis-panel"></div>
+      <div class="panel"><div class="panel-title">Alertas</div><div id="alertas-panel"></div></div>
+      <div class="panel"><div class="panel-title">Distribución por ubicación</div><div id="ubic-panel"></div></div>
+    </section>
+
+    <!-- BIENES -->
+    <section id="at-bienes" class="hidden">
+      <div class="toolbar">
+        <input type="text" id="q-bienes" placeholder="Buscar código, descripción, serie…" oninput="renderBienes()">
+        <select id="f-estado" onchange="renderBienes()">
+          <option value="">Todos</option>
+          <option>Bueno</option><option>Regular</option><option>Malo</option><option>Baja</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openBienForm()">+ Bien</button>
+        <button class="btn btn-ghost btn-sm"   onclick="document.getElementById('pdf-input').click()">⬆ PDF</button>
+        <input type="file" id="pdf-input" accept=".pdf" style="display:none" onchange="handlePDFFile(this)">
+        <button class="btn btn-ghost btn-sm"   onclick="exportExcelBienes()">Excel</button>
+        <button class="btn btn-ghost btn-sm"   onclick="exportPDFBienes()">PDF</button>
+      </div>
+      <div class="panel" style="overflow-x:auto;padding:10px">
+        <table id="tbl-bienes">
+          <thead><tr>
+            <th>Código</th><th>Descripción</th><th>Custodio / Ubicación</th>
+            <th>Estado</th><th>Vida útil</th><th class="money">Valor</th><th></th>
+          </tr></thead>
+          <tbody id="tb-bienes"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TRASLADOS -->
+    <section id="at-traslados" class="hidden">
+      <div class="toolbar">
+        <button class="btn btn-primary btn-sm" onclick="openTrasladoForm()">+ Traslado</button>
+      </div>
+      <div class="panel" style="overflow-x:auto;padding:10px">
+        <table><thead><tr>
+          <th>Fecha</th><th>Bien</th><th>Tipo</th><th>De</th><th>A</th><th>Acta</th><th>Motivo</th>
+        </tr></thead><tbody id="tb-traslados"></tbody></table>
+      </div>
+    </section>
+
+    <!-- MANTENIMIENTO -->
+    <section id="at-mant" class="hidden">
+      <div class="toolbar">
+        <button class="btn btn-primary btn-sm" onclick="openMantForm()">+ Mantenimiento</button>
+      </div>
+      <div class="panel" style="overflow-x:auto;padding:10px">
+        <table><thead><tr>
+          <th>Fecha</th><th>Bien</th><th>Tipo</th><th>Detalle</th><th class="money">Costo</th><th>Próximo</th>
+        </tr></thead><tbody id="tb-mant"></tbody></table>
+      </div>
+    </section>
+
+    <!-- REPORTES -->
+    <section id="at-reportes" class="hidden">
+      <div class="panel">
+        <div class="panel-title">Exportar inventario</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="exportExcelBienes()">Excel con formato</button>
+          <button class="btn btn-ghost" onclick="exportPDFBienes()">PDF institucional</button>
+          <button class="btn btn-ghost" onclick="exportCSV('constatacion')">Hoja de constatación</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Importar desde PDF oficial</div>
+        <p class="muted" style="margin-bottom:12px">Carga el reporte "Control de Bienes de Larga Duración por cada Usuario" generado por el sistema de tu institución.</p>
+        <button class="btn btn-ghost" onclick="document.getElementById('pdf-input').click()">⬆ Importar PDF</button>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Respaldo de datos</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="backupJSON()">Descargar respaldo JSON</button>
+          <label class="btn btn-ghost" style="cursor:pointer">Restaurar JSON <input type="file" accept=".json" style="display:none" onchange="restoreJSON(this)"></label>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Modal root -->
+<div id="modal-root"></div>
+
+<script>
+/* ============================================================
+   MisBienes — App principal
+   Supabase para auth y datos · Google Apps Script para fotos
+   ============================================================ */
+
+// ── CONFIGURACIÓN ────────────────────────────────────────────
+// REEMPLAZA estos valores con los de tu proyecto Supabase:
+const SUPABASE_URL  = 'https://ccwmkuxismgqaswsezur.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_FeDamktlMpE30DNj3J2kdw_2HH_1fjs';
+// URL del Web App de Google Apps Script:
+const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbw0uLnm7Im7D5XILlskV7Fj0ThmWpOUdZbD4ZDkaV2x-7MfUFdKmzwaJSKBPmaf48I/exec';
+const DRIVE_TOKEN   = 'mb_2026_xK9mP3qR7wL2nF8'; // el mismo que en el .gs
+// ─────────────────────────────────────────────────────────────
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Estado local (cache de la sesión actual)
+let _user    = null;
+let _profile = null;
+let _bienes  = [];
+let _traslados = [];
+let _mantenimientos = [];
+
+// ── UTILIDADES ───────────────────────────────────────────────
+const hoy  = () => new Date().toISOString().slice(0,10);
+const fmtD = s => {if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`};
+const fmt$ = n => Number(n||0).toLocaleString('es-EC',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc  = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const el   = id => document.getElementById(id);
+const isPro = () => _profile?.plan === 'pro' || _profile?.plan === 'fundador';
+const maxB  = () => _profile?.max_bienes ?? 25;
+
+function toast(msg, err=false){
+  const t=el('toast');t.textContent=msg;t.classList.toggle('err',err);
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+// ── VISTAS ───────────────────────────────────────────────────
+const views = ['landing','auth','app'];
+function showView(v){views.forEach(x=>el('view-'+x).classList.toggle('hidden',x!==v))}
+
+function showLanding(){showView('landing')}
+function showAuth(tab='login'){showView('auth');switchAuthTab(tab)}
+function showApp(){showView('app');loadData()}
+
+// ── LANDING TICKER ───────────────────────────────────────────
+function animateTicker(){
+  const target = 953350.25;
+  const dur = 2200, step = 16;
+  let start = null;
+  const tick = ts => {
+    if(!start) start = ts;
+    const p = Math.min((ts-start)/dur, 1);
+    const ease = 1 - Math.pow(1-p, 3);
+    el('ticker').textContent = '$' + Math.floor(target*ease).toLocaleString('es-EC');
+    if(p < 1) requestAnimationFrame(tick);
+    else el('ticker').textContent = '$' + fmt$(target);
+  };
+  requestAnimationFrame(tick);
+}
+
+// ── AUTH TABS ────────────────────────────────────────────────
+function switchAuthTab(tab){
+  el('tab-login').classList.toggle('active', tab==='login');
+  el('tab-register').classList.toggle('active', tab==='register');
+  el('form-login').classList.toggle('hidden', tab!=='login');
+  el('form-register').classList.toggle('hidden', tab!=='register');
+}
+
+// ── AUTH ACTIONS ─────────────────────────────────────────────
+async function doLogin(){
+  const email = el('l-email').value.trim();
+  const pass  = el('l-pass').value;
+  if(!email||!pass){toast('Completa correo y contraseña',true);return}
+  const {error} = await sb.auth.signInWithPassword({email,password:pass});
+  if(error){toast(error.message.includes('Invalid')?'Correo o contraseña incorrectos':error.message,true)}
+}
+
+async function doRegister(){
+  const nombre = el('r-nombre').value.trim();
+  const email  = el('r-email').value.trim();
+  const pass   = el('r-pass').value;
+  const inst   = el('r-inst').value.trim();
+  if(!nombre||!email||!pass){toast('Completa todos los campos',true);return}
+  if(pass.length<8){toast('La contraseña debe tener al menos 8 caracteres',true);return}
+  const {error} = await sb.auth.signUp({
+    email,password:pass,
+    options:{data:{nombre_completo:nombre,institucion:inst}}
+  });
+  if(error){toast(error.message,true)}
+  else{toast('¡Cuenta creada! Revisa tu correo para confirmarla.')}
+}
+
+async function doReset(){
+  const email = el('l-email').value.trim();
+  if(!email){toast('Escribe tu correo primero',true);return}
+  const {error} = await sb.auth.resetPasswordForEmail(email);
+  if(error){toast(error.message,true)}
+  else{toast('Correo de recuperación enviado.')}
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  _user=null;_profile=null;_bienes=[];_traslados=[];_mantenimientos=[];
+  showLanding();
+}
+
+// ── ESCUCHAR CAMBIOS DE SESIÓN ───────────────────────────────
+sb.auth.onAuthStateChange(async (event, session) => {
+  if(session?.user){
+    _user = session.user;
+    await loadProfile();
+    showApp();
+  } else if(!session && !_user){
+    showLanding();
+  }
+});
+
+// ── PERFIL ───────────────────────────────────────────────────
+async function loadProfile(){
+  const {data,error} = await sb.from('profiles').select('*').eq('id',_user.id).single();
+  if(!error&&data){
+    _profile = data;
+    el('app-user-name').textContent = data.nombre_completo||_user.email;
+    const badge = el('plan-badge');
+    badge.textContent = data.plan==='pro'?'Pro':data.plan==='fundador'?'Fundador':'Gratis';
+    badge.classList.toggle('pro', data.plan!=='gratis');
+  }
+}
+
+// ── CARGAR DATOS DESDE SUPABASE ──────────────────────────────
+async function loadData(){
+  if(!_user) return;
+  const [rb,rt,rm] = await Promise.all([
+    sb.from('bienes').select('*').eq('user_id',_user.id).order('fecha_ingreso',{ascending:false}),
+    sb.from('traslados').select('*').eq('user_id',_user.id).order('fecha',{ascending:false}),
+    sb.from('mantenimientos').select('*').eq('user_id',_user.id).order('fecha',{ascending:false})
+  ]);
+  if(rb.data) _bienes = rb.data;
+  if(rt.data) _traslados = rt.data;
+  if(rm.data) _mantenimientos = rm.data;
+  renderAll();
+}
+
+// ── NAVEGACIÓN DE LA APP ─────────────────────────────────────
+function appTab(btn){
+  document.querySelectorAll('.app-nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const tabs=['panel','bienes','traslados','mant','reportes'];
+  tabs.forEach(t=>el('at-'+t).classList.toggle('hidden',t!==btn.dataset.tab));
+  renderAll();
+}
+
+// ── VIDA ÚTIL (depreciación línea recta, residual 10%) ───────
+function vida(b){
+  if(b.es_control_admin||!b.vida_util_anios)return null;
+  const ini=new Date(b.fecha_ingreso),ahora=new Date();
+  const años=(ahora-ini)/(365.25*24*3600*1000);
+  const pct=Math.min(100,Math.max(0,años/b.vida_util_anios*100));
+  const residual=Number(b.valor)*0.10;
+  const dep=Math.min(Number(b.valor)-residual,(Number(b.valor)-residual)*(años/b.vida_util_anios));
+  return{años,pct,libros:Math.max(residual,Number(b.valor)-dep),restante:Math.max(0,b.vida_util_anios-años)};
+}
+const lifeColor = p => p>=100?'#b91c1c':p>=80?'#d97706':'#0e6659';
+
+// ── RENDER PANEL ─────────────────────────────────────────────
+function renderPanel(){
+  const act = _bienes.filter(b=>b.activo);
+  const total = act.reduce((s,b)=>s+Number(b.valor),0);
+  const libros = act.reduce((s,b)=>{const v=vida(b);return s+(v?v.libros:Number(b.valor))},0);
+  const venc = act.filter(b=>{const v=vida(b);return v&&v.pct>=100}).length;
+  const porV = act.filter(b=>{const v=vida(b);return v&&v.pct>=80&&v.pct<100}).length;
+
+  // Barra límite plan gratis
+  if(!isPro()){
+    const n=act.length, max=maxB(), pct=Math.min(100,n/max*100);
+    el('limit-wrap').classList.remove('hidden');
+    el('limit-txt').textContent=`${n} de ${max} bienes usados (plan Gratis)`;
+    const bar=el('limit-bar');bar.style.width=pct+'%';
+    bar.className='limit-bar-fill'+(pct>=90?' bad':pct>=70?' warn':'');
+  } else {
+    el('limit-wrap').classList.add('hidden');
+  }
+
+  el('kpis-panel').innerHTML=`
+    <div class="kpi"><div class="v">${act.length}</div><div class="l">Bienes activos</div></div>
+    <div class="kpi"><div class="v">$${fmt$(total)}</div><div class="l">Valor adquisición</div></div>
+    <div class="kpi"><div class="v">$${fmt$(libros)}</div><div class="l">Valor en libros</div></div>
+    <div class="kpi ${venc?'bad':''}"><div class="v">${venc}</div><div class="l">Vida cumplida</div></div>
+    <div class="kpi ${porV?'warn':''}"><div class="v">${porV}</div><div class="l">Por vencer</div></div>`;
+
+  const A=[];
+  act.forEach(b=>{
+    const v=vida(b);
+    if(v&&v.pct>=100)A.push({c:'bad',t:`<b>${esc(b.codigo)}</b> — ${esc(b.descripcion)}: vida útil cumplida. Evaluar revalorización o proceso de baja.`});
+    else if(v&&v.pct>=80)A.push({c:'warn',t:`<b>${esc(b.codigo)}</b> — ${esc(b.descripcion)}: ${v.pct.toFixed(0)}% consumido, restan ${v.restante.toFixed(1)} años.`});
+    if(b.estado==='Regular'||b.estado==='Malo')A.push({c:b.estado==='Malo'?'bad':'warn',t:`<b>${esc(b.codigo)}</b>: estado actual <u>${b.estado}</u>.`});
+  });
+  _mantenimientos.filter(m=>m.proximo&&m.proximo<=hoy()).forEach(m=>{
+    const b=_bienes.find(x=>x.id===m.bien_id);
+    if(b?.activo)A.push({c:'warn',t:`<b>${esc(b.codigo)}</b>: mantenimiento vencido (${fmtD(m.proximo)}).`});
+  });
+  el('alertas-panel').innerHTML=A.length?A.map(a=>`<div class="alert-row ${a.c}">⚠ <div>${a.t}</div></div>`).join(''):'<p class="muted">Sin alertas activas.</p>';
+
+  const u={};
+  act.forEach(b=>{u[b.ubicacion||'Sin ubicación']=u[b.ubicacion||'Sin ubicación']||{n:0,v:0};u[b.ubicacion||'Sin ubicación'].n++;u[b.ubicacion||'Sin ubicación'].v+=Number(b.valor)});
+  el('ubic-panel').innerHTML='<table><thead><tr><th>Ubicación</th><th>Bienes</th><th class="money">Valor</th></tr></thead><tbody>'+
+    Object.entries(u).sort((a,c)=>c[1].v-a[1].v).map(([k,x])=>`<tr><td>${esc(k)}</td><td>${x.n}</td><td class="money">$${fmt$(x.v)}</td></tr>`).join('')+'</tbody></table>';
+}
+
+// ── RENDER BIENES ─────────────────────────────────────────────
+function renderBienes(){
+  const q=(el('q-bienes').value||'').toLowerCase();
+  const fe=el('f-estado').value;
+  const rows=_bienes.filter(b=>{
+    if(fe==='Baja'&&b.activo)return false;
+    if(fe&&fe!=='Baja'&&(b.estado!==fe||!b.activo))return false;
+    if(!fe&&!b.activo)return false;
+    return[b.codigo,b.descripcion,b.serie,b.marca,b.modelo,b.ubicacion].join(' ').toLowerCase().includes(q);
+  });
+  el('tb-bienes').innerHTML=rows.map(b=>{
+    const v=vida(b);
+    const lb=v?`<div style="display:flex;align-items:center;gap:6px"><div class="lifebar"><i style="width:${v.pct}%;background:${lifeColor(v.pct)}"></i></div><span style="font-size:11px;font-family:var(--mono);width:34px">${v.pct.toFixed(0)}%</span></div>`
+             :(b.es_control_admin?'<span class="badge b-ctrl">Control</span>':'—');
+    const est=!b.activo?'<span class="badge b-bad" style="text-decoration:line-through">Baja</span>':
+      b.estado==='Bueno'?'<span class="badge b-good">Bueno</span>':
+      b.estado==='Regular'?'<span class="badge b-reg">Regular</span>':'<span class="badge b-bad">Malo</span>';
+    return`<tr style="cursor:pointer" onclick="openDetalle('${b.id}')">
+      <td class="code-cell">${esc(b.codigo)}</td>
+      <td><strong>${esc(b.descripcion)}</strong><br><span class="muted">${esc(b.marca||'')} ${esc(b.modelo||'')}</span></td>
+      <td>${esc(b.custodio_nombre||'—')}<br><span class="muted">${esc(b.ubicacion||'—')}</span></td>
+      <td>${est}</td><td>${lb}</td>
+      <td class="money">$${fmt$(b.valor)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openBienForm('${b.id}')">Editar</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted" style="text-align:center;padding:20px">Sin bienes. Importa tu PDF o agrega un bien manualmente.</td></tr>';
+}
+
+// ── RENDER TRASLADOS ──────────────────────────────────────────
+function renderTraslados(){
+  el('tb-traslados').innerHTML=[..._traslados].map(t=>{
+    const b=_bienes.find(x=>x.id===t.bien_id);
+    return`<tr><td class="code-cell">${fmtD(t.fecha)}</td>
+      <td>${b?esc(b.descripcion):'—'}<br><span class="muted code-cell">${b?esc(b.codigo):''}</span></td>
+      <td><span class="badge b-ctrl">${esc(t.tipo)}</span></td>
+      <td>${esc(t.de_ubicacion||'—')}</td><td>${esc(t.a_ubicacion||'—')}</td>
+      <td class="code-cell">${esc(t.acta||'—')}</td><td class="muted">${esc(t.motivo||'')}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted" style="text-align:center;padding:20px">Sin traslados registrados.</td></tr>';
+}
+
+// ── RENDER MANTENIMIENTO ──────────────────────────────────────
+function renderMant(){
+  el('tb-mant').innerHTML=[..._mantenimientos].map(m=>{
+    const b=_bienes.find(x=>x.id===m.bien_id);
+    const vencido=m.proximo&&m.proximo<=hoy();
+    return`<tr><td class="code-cell">${fmtD(m.fecha)}</td>
+      <td>${b?esc(b.descripcion):'—'}<br><span class="muted code-cell">${b?esc(b.codigo):''}</span></td>
+      <td><span class="badge ${m.tipo==='Correctivo'?'b-bad':'b-good'}">${esc(m.tipo)}</span></td>
+      <td>${esc(m.detalle)}</td>
+      <td class="money">${m.costo?'$'+fmt$(m.costo):'—'}</td>
+      <td class="code-cell" style="${vencido?'color:var(--red);font-weight:600':''}">${fmtD(m.proximo)}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">Sin mantenimientos. Regístralos para generar alertas.</td></tr>';
+}
+
+function renderAll(){renderPanel();renderBienes();renderTraslados();renderMant()}
+
+// ── MODALES ───────────────────────────────────────────────────
+const root = el('modal-root');
+const closeModal = () => root.innerHTML='';
+function modal(html){root.innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal"><button class="close" onclick="closeModal()">×</button>${html}</div></div>`}
+
+// ── DETALLE DEL BIEN ──────────────────────────────────────────
+async function openDetalle(id){
+  const b=_bienes.find(x=>x.id===id);
+  if(!b)return;
+  const v=vida(b);
+  const hist=_traslados.filter(t=>t.bien_id===id).sort((a,c)=>a.fecha.localeCompare(c.fecha));
+  const mts=_mantenimientos.filter(m=>m.bien_id===id);
+
+  // Cargar fotos si es Pro
+  let fotosHTML='';
+  if(isPro()){
+    const {data:fotos}=await sb.from('bien_fotos').select('*').eq('bien_id',id).order('tomada_en',{ascending:false});
+    if(fotos&&fotos.length){
+      fotosHTML=`<div class="foto-grid">${fotos.map(f=>`
+        <div class="foto-thumb" onclick="window.open('${f.drive_view_url}','_blank')">
+          <img src="${f.thumb_url||f.drive_view_url}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📷</text></svg>'">
+          <button class="del-foto" onclick="event.stopPropagation();eliminarFoto('${f.id}','${f.drive_file_id}')">×</button>
+        </div>`).join('')}</div>`;
+    }
+    fotosHTML+=`<label class="foto-upload-btn" style="margin-top:8px">
+      <span class="fi">📷</span><span>Agregar foto</span>
+      <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="subirFoto(this,'${id}')">
+    </label>`;
+  } else {
+    fotosHTML=`<div class="pro-gate"><p>Las fotos son una función de <strong>Custodio Pro</strong>. Son tu evidencia visual ante una auditoría.</p><button class="btn btn-amber btn-sm" onclick="showUpgrade()">Ver plan Pro — $30/año</button></div>`;
+  }
+
+  modal(`
+    <h3>${esc(b.descripcion)}</h3>
+    <p class="muted code-cell" style="margin-bottom:14px">${esc(b.codigo)}</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+      <div style="background:var(--paper);border-radius:8px;padding:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">Marca / Modelo</div><strong>${esc(b.marca||'')} ${esc(b.modelo||'')}</strong></div>
+      <div style="background:var(--paper);border-radius:8px;padding:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">Serie</div><strong class="mono">${esc(b.serie||'—')}</strong></div>
+      <div style="background:var(--paper);border-radius:8px;padding:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">Valor</div><strong class="mono">$${fmt$(b.valor)}</strong></div>
+      <div style="background:var(--paper);border-radius:8px;padding:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">Ubicación</div><strong>${esc(b.ubicacion||'—')}</strong></div>
+      ${v?`<div style="background:var(--paper);border-radius:8px;padding:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">Vida útil</div><strong>${v.años.toFixed(1)} / ${b.vida_util_anios} años (${v.pct.toFixed(0)}%)</strong></div>
+      <div style="background:var(--paper);border-radius:8px;padding:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">Valor en libros</div><strong class="mono">$${fmt$(v.libros)}</strong></div>`:''}
+    </div>
+    <h4 style="font-family:var(--display);font-size:14px;text-transform:uppercase;letter-spacing:.7px;color:var(--teal2);margin-bottom:8px">Fotos del bien</h4>
+    ${fotosHTML}
+    <h4 style="font-family:var(--display);font-size:14px;text-transform:uppercase;letter-spacing:.7px;color:var(--teal2);margin:14px 0 8px">Historial de movimientos</h4>
+    <div style="border-left:2px solid var(--line);margin-left:8px;padding-left:16px">
+      ${hist.map(t=>`<div style="position:relative;padding-bottom:12px">
+        <div style="position:absolute;left:-21px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--teal)"></div>
+        <div class="muted mono" style="font-size:12px">${fmtD(t.fecha)} · ${esc(t.tipo)} · Acta ${esc(t.acta||'—')}</div>
+        <div><strong>${esc(t.de_ubicacion||'—')}</strong> → <strong>${esc(t.a_ubicacion||'—')}</strong></div>
+        <div class="muted">${esc(t.motivo||'')}</div>
+      </div>`).join('')||'<p class="muted">Sin movimientos.</p>'}
+    </div>
+    <div class="modal-actions">
+      ${b.activo?`<button class="btn btn-ghost btn-sm" onclick="closeModal();openTrasladoForm('${b.id}')">Traslado</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();openMantForm('${b.id}')">Mantenimiento</button>
+      <button class="btn btn-danger btn-sm" onclick="darBaja('${b.id}')">Dar de baja</button>`:''}
+    </div>`);
+}
+
+async function darBaja(id){
+  const motivo=prompt('Motivo de la baja:');
+  if(motivo===null)return;
+  const b=_bienes.find(x=>x.id===id);
+  const {error}=await sb.from('bienes').update({activo:false,estado:'Malo'}).eq('id',id);
+  if(error){toast(error.message,true);return}
+  await sb.from('traslados').insert({bien_id:id,user_id:_user.id,fecha:hoy(),tipo:'BAJA',
+    de_ubicacion:b.ubicacion,a_ubicacion:'Baja / Egreso',motivo});
+  await loadData();closeModal();toast('Bien dado de baja.');
+}
+
+// ── FORM BIEN ─────────────────────────────────────────────────
+function openBienForm(id){
+  const b=id?_bienes.find(x=>x.id===id):null;
+  const ubics=[...new Set(_bienes.map(x=>x.ubicacion).filter(Boolean))];
+  modal(`<h3>${b?'Editar bien':'Nuevo bien'}</h3>
+  <div class="form-grid">
+    <div class="full field"><label>Descripción</label><input id="fb-desc" value="${esc(b?.descripcion||'')}"></div>
+    <div class="field"><label>Código institucional</label><input id="fb-cod" value="${esc(b?.codigo||'')}"></div>
+    <div class="field"><label>Serie</label><input id="fb-serie" value="${esc(b?.serie||'')}"></div>
+    <div class="field"><label>Marca</label><input id="fb-marca" value="${esc(b?.marca||'')}"></div>
+    <div class="field"><label>Modelo</label><input id="fb-modelo" value="${esc(b?.modelo||'')}"></div>
+    <div class="field"><label>Fecha de ingreso</label><input type="date" id="fb-fecha" value="${b?.fecha_ingreso||hoy()}"></div>
+    <div class="field"><label>Valor (USD)</label><input type="number" step="0.01" id="fb-valor" value="${b?.valor||''}"></div>
+    <div class="field"><label>Tipo de ingreso</label><select id="fb-tipo">${['ENTREGA','TRASPASO','COMPRA','DONACION'].map(t=>`<option ${b?.tipo_ingreso===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="field"><label>Acta</label><input id="fb-acta" value="${esc(b?.acta||'')}"></div>
+    <div class="field"><label>Ubicación</label><input id="fb-ubic" value="${esc(b?.ubicacion||'')}" list="dl-ubic"><datalist id="dl-ubic">${ubics.map(u=>`<option>${esc(u)}</option>`).join('')}</datalist></div>
+    <div class="field"><label>Estado</label><select id="fb-estado">${['Bueno','Regular','Malo'].map(e=>`<option ${b?.estado===e?'selected':''}>${e}</option>`).join('')}</select></div>
+    <div class="field"><label>Vida útil (años, 0=control adm.)</label><input type="number" id="fb-vida" value="${b?(b.es_control_admin?0:b.vida_util_anios):10}"></div>
+    <div class="full field"><label>Observaciones</label><textarea id="fb-obs" rows="2">${esc(b?.obs||'')}</textarea></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveBien('${b?.id||''}')">Guardar</button></div>`);
+}
+
+async function saveBien(id){
+  const g=x=>el(x).value.trim();
+  const vida_n=Number(g('fb-vida'))||0;
+  const payload={descripcion:g('fb-desc'),codigo:g('fb-cod'),serie:g('fb-serie'),marca:g('fb-marca'),
+    modelo:g('fb-modelo'),fecha_ingreso:g('fb-fecha'),valor:Number(g('fb-valor'))||0,
+    tipo_ingreso:g('fb-tipo'),acta:g('fb-acta'),ubicacion:g('fb-ubic'),estado:g('fb-estado'),
+    vida_util_anios:vida_n,es_control_admin:vida_n===0,obs:g('fb-obs'),user_id:_user.id};
+  if(!payload.descripcion||!payload.codigo){toast('Descripción y código son obligatorios.',true);return}
+  let error;
+  if(id){({error}=await sb.from('bienes').update(payload).eq('id',id))}
+  else{
+    // Verificar límite de plan gratis
+    if(!isPro()&&_bienes.filter(b=>b.activo).length>=maxB()){
+      toast(`Límite de ${maxB()} bienes alcanzado. Actualiza a Pro para bienes ilimitados.`,true);return;
+    }
+    const {data,error:e}=await sb.from('bienes').insert(payload).select().single();
+    error=e;
+    if(!error&&data){
+      await sb.from('traslados').insert({bien_id:data.id,user_id:_user.id,fecha:payload.fecha_ingreso,
+        tipo:payload.tipo_ingreso,de_ubicacion:'—',a_ubicacion:payload.ubicacion,
+        acta:payload.acta,motivo:'Ingreso al registro'});
+    }
+  }
+  if(error){toast(error.message,true);return}
+  await loadData();closeModal();toast(id?'Bien actualizado.':'Bien agregado.');
+}
+
+// ── FORM TRASLADO ─────────────────────────────────────────────
+function openTrasladoForm(bienId){
+  const opts=_bienes.filter(b=>b.activo).map(b=>`<option value="${b.id}" ${b.id===bienId?'selected':''}>${esc(b.codigo)} — ${esc(b.descripcion)}</option>`).join('');
+  const ubics=[...new Set(_bienes.map(x=>x.ubicacion).filter(Boolean))];
+  modal(`<h3>Registrar traslado</h3>
+  <div class="form-grid">
+    <div class="full field"><label>Bien</label><select id="ft-bien">${opts}</select></div>
+    <div class="field"><label>Fecha</label><input type="date" id="ft-fecha" value="${hoy()}"></div>
+    <div class="field"><label>Tipo</label><select id="ft-tipo"><option>TRASLADO INTERNO</option><option>TRASPASO</option><option>ENTREGA</option><option>PRESTAMO TEMPORAL</option><option>RETORNO</option></select></div>
+    <div class="field"><label>Nueva ubicación</label><input id="ft-ubic" list="dl-ubic2"><datalist id="dl-ubic2">${ubics.map(u=>`<option>${esc(u)}</option>`).join('')}</datalist></div>
+    <div class="field"><label>Acta / Memorando</label><input id="ft-acta"></div>
+    <div class="full field"><label>Motivo</label><textarea id="ft-motivo" rows="2"></textarea></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveTraslado()">Registrar</button></div>`);
+}
+
+async function saveTraslado(){
+  const g=x=>el(x).value.trim();
+  const bienId=g('ft-bien'),nuevaUbic=g('ft-ubic');
+  if(!nuevaUbic){toast('Indica la nueva ubicación.',true);return}
+  const b=_bienes.find(x=>x.id===bienId);
+  const {error}=await sb.from('traslados').insert({
+    bien_id:bienId,user_id:_user.id,fecha:g('ft-fecha'),tipo:g('ft-tipo'),
+    de_ubicacion:b?.ubicacion||'—',a_ubicacion:nuevaUbic,
+    acta:g('ft-acta'),motivo:g('ft-motivo'),origen:'manual'
+  });
+  if(error){toast(error.message,true);return}
+  await loadData();closeModal();toast('Traslado registrado.');
+}
+
+// ── FORM MANTENIMIENTO ────────────────────────────────────────
+function openMantForm(bienId){
+  const opts=_bienes.filter(b=>b.activo).map(b=>`<option value="${b.id}" ${b.id===bienId?'selected':''}>${esc(b.codigo)} — ${esc(b.descripcion)}</option>`).join('');
+  modal(`<h3>Registrar mantenimiento</h3>
+  <div class="form-grid">
+    <div class="full field"><label>Bien</label><select id="fm-bien">${opts}</select></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fm-fecha" value="${hoy()}"></div>
+    <div class="field"><label>Tipo</label><select id="fm-tipo"><option>Preventivo</option><option>Correctivo</option><option>Inspección</option></select></div>
+    <div class="field"><label>Costo (USD)</label><input type="number" step="0.01" id="fm-costo"></div>
+    <div class="field"><label>Próximo mantenimiento</label><input type="date" id="fm-prox"></div>
+    <div class="full field"><label>Detalle del trabajo</label><textarea id="fm-detalle" rows="3"></textarea></div>
+    <div class="full field"><label>Responsable / Taller</label><input id="fm-resp"></div>
+  </div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveMant()">Registrar</button></div>`);
+}
+
+async function saveMant(){
+  const g=x=>el(x).value.trim();
+  if(!g('fm-detalle')){toast('Describe el trabajo realizado.',true);return}
+  const {error}=await sb.from('mantenimientos').insert({
+    bien_id:g('fm-bien'),user_id:_user.id,fecha:g('fm-fecha'),tipo:g('fm-tipo'),
+    costo:Number(g('fm-costo'))||null,proximo:g('fm-prox')||null,
+    detalle:g('fm-detalle'),responsable:g('fm-resp')
+  });
+  if(error){toast(error.message,true);return}
+  await loadData();closeModal();toast('Mantenimiento registrado.');
+}
+
+// ── SUBIDA DE FOTOS A DRIVE ───────────────────────────────────
+async function subirFoto(input, bienId){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>5*1024*1024){toast('Imagen demasiado grande. Máximo 5 MB.',true);return}
+  toast('Subiendo foto…');
+  const b=_bienes.find(x=>x.id===bienId);
+  try{
+    const base64=await new Promise((res,rej)=>{
+      const r=new FileReader();
+      r.onload=()=>res(r.result.split(',')[1]);
+      r.onerror=rej;r.readAsDataURL(file);
+    });
+    const resp=await fetch(DRIVE_API_URL,{method:'POST',
+      body:JSON.stringify({token:DRIVE_TOKEN,user_id:_user.id,bien_id:bienId,
+        bien_codigo:b?.codigo||bienId,nombre:file.name,mime_type:file.type,base64})});
+    const data=await resp.json();
+    if(!data.ok){toast(data.error||'Error al subir foto',true);return}
+    // Guardar referencia en Supabase
+    await sb.from('bien_fotos').insert({
+      bien_id:bienId,user_id:_user.id,
+      drive_file_id:data.file_id,
+      drive_view_url:data.view_url,
+      thumb_url:data.thumb_url,
+      nombre_archivo:data.nombre,
+      tamano_bytes:data.tamano_bytes,
+      mime_type:file.type
+    });
+    await openDetalle(bienId);toast('Foto guardada.');
+  }catch(e){toast('Error al subir la foto: '+e.message,true)}
+}
+
+async function eliminarFoto(fotoId, fileId){
+  if(!confirm('¿Eliminar esta foto?'))return;
+  await sb.from('bien_fotos').delete().eq('id',fotoId);
+  // La foto en Drive se deja (Supabase ya no la referencia)
+  // Para eliminarla también en Drive habría que llamar al Apps Script
+  toast('Foto eliminada del registro.');
+  closeModal();
+}
+
+// ── UPGRADE MODAL ─────────────────────────────────────────────
+function showUpgrade(){
+  modal(`<h3>Actualizar a Custodio Pro</h3>
+  <p style="margin:12px 0;color:var(--ink2)">Desbloquea bienes ilimitados, fotos como evidencia, alertas por correo y enlace para auditor — por <strong>USD 30 al año</strong> (USD 2.50/mes).</p>
+  <div style="background:var(--amber-bg);border-radius:var(--r);padding:16px;margin-bottom:16px">
+    <strong>¿Cómo actualizar?</strong><br>
+    <span class="muted">Transfiere USD 30 a la cuenta indicada y envía el comprobante a <strong>soporte@misbienes.ec</strong> con tu correo registrado. Activamos tu plan Pro en menos de 24 horas.</span>
+  </div>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+  <button class="btn btn-amber" onclick="window.open('mailto:soporte@misbienes.ec?subject=Activación Pro&body=Mi correo registrado: ${_user?.email||''}','_blank');closeModal()">Contactar por correo</button></div>`);
+}
+
+// ── IMPORTACIÓN DE PDF ────────────────────────────────────────
+// (reutiliza el parser completo del sistema anterior)
+let _pdfjsPromise=null;
+function loadPdfJs(){
+  if(window.pdfjsLib)return Promise.resolve();
+  if(_pdfjsPromise)return _pdfjsPromise;
+  _pdfjsPromise=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';res()};
+    s.onerror=()=>{_pdfjsPromise=null;rej(new Error('cdn'))};
+    document.head.appendChild(s);
+  });
+  return _pdfjsPromise;
+}
+
+async function handlePDFFile(input){
+  const file=input.files[0];input.value='';if(!file)return;
+  modal('<h3>Importando PDF…</h3><p class="muted">Leyendo el archivo, espera un momento.</p>');
+  try{
+    await loadPdfJs();
+    const data=await parseReportePDF(file);
+    if(!data.bienes.length){modal('<h3>Importar PDF</h3><p class="muted">No se encontraron bienes. Verifica que sea el reporte "Control de Bienes de Larga Duración por cada Usuario" (PDF con texto, no escaneado).</p><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>');return}
+    showImportPreview(data);
+  }catch(e){
+    modal(`<h3>Importar PDF</h3><p class="muted">${e.message==='cdn'?'Sin conexión para descargar el lector de PDF.':'El PDF no contiene texto extraíble. Usa el PDF original del sistema, no un escaneo.'}</p><div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`);
+  }
+}
+
+async function parseReportePDF(file){
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let nombre='',ci='';const bienes=[];
+  const reFecha=/^\d{2}\/\d{2}\/\d{4}$/;
+  const reValor=/^\d[\d.,]*[.,]\d{2}$/;
+  const reActa=/^[\d.,]+$/;
+  const reEstado=/^(Bueno|Regular|Malo)$/i;
+  const reTipo=/^(TRASPASO|ENTREGA|COMPRA|DONACION|DONACIÓN)$/i;
+  const parseNum=s=>{s=String(s||'').trim();if(!s)return 0;const c=s.lastIndexOf(','),d=s.lastIndexOf('.');if(c>d)return Number(s.replace(/\./g,'').replace(',','.'))||0;return Number(s.replace(/,/g,''))||0};
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const tc=await page.getTextContent();
+    const items=tc.items.map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5],w:i.width||0})).filter(i=>i.s);
+    if(!nombre){
+      const ln=items.find(i=>i.s.replace(':','').trim().toUpperCase()==='NOMBRE');
+      const li=items.find(i=>i.s.replace(':','').trim().toUpperCase().startsWith('IDENTIFICACION'));
+      if(ln){const fila=items.filter(i=>Math.abs(i.y-ln.y)<4&&i.x>ln.x&&i!==ln&&(!li||i.x<li.x)).sort((a,b)=>a.x-b.x);nombre=fila.map(i=>i.s).join(' ').replace(/^:\s*/,'').trim()}
+      if(li){const v=items.find(i=>Math.abs(i.y-li.y)<6&&i.x>li.x&&/^\d{8,13}$/.test(i.s));if(v)ci=v.s}
+    }
+    const findH=(...n)=>items.find(i=>n.some(x=>i.s.toUpperCase().replace(/\s+/g,' ')===x));
+    const hFecha=findH('FECHA'),hCod=findH('CODIGO','CÓDIGO'),hDesc=findH('DESCRIPCION','DESCRIPCIÓN'),
+      hMarca=findH('MARCA'),hModelo=findH('MODELO'),hSerie=findH('SERIE'),hObs=findH('OBSERVACIONES'),
+      hEE=findH('EST. ENTR','EST.ENTR'),hEA=findH('EST. ACT','EST.ACT'),hVal=findH('VALOR'),
+      hTipo=findH('TIPO'),hActa=findH('ACTA'),hUA=findH('USUARIO ANTER.','USUARIO ANTERIOR');
+    if(!hCod||!hDesc||!hVal)continue;
+    let headFecha=hFecha;
+    items.forEach(i=>{if(i.s.toUpperCase()==='FECHA'&&Math.abs(i.y-hCod.y)<4)headFecha=i});
+    if(!headFecha)continue;
+    const headerY=hCod.y;
+    const cols=[{k:'fecha',h:headFecha},{k:'codigo',h:hCod},{k:'desc',h:hDesc},
+      hMarca&&{k:'marca',h:hMarca},hModelo&&{k:'modelo',h:hModelo},hSerie&&{k:'serie',h:hSerie},
+      hObs&&{k:'obs',h:hObs},hEE&&{k:'estEntr',h:hEE},hEA&&{k:'estAct',h:hEA},
+      {k:'valor',h:hVal},hTipo&&{k:'tipo',h:hTipo},hActa&&{k:'acta',h:hActa},hUA&&{k:'ua',h:hUA}
+    ].filter(Boolean).map(c=>({k:c.k,c:c.h.x+(c.h.w||0)/2})).sort((a,b)=>a.c-b.c);
+    const bounds=[];for(let i=0;i<cols.length-1;i++)bounds.push((cols[i].c+cols[i+1].c)/2);
+    const colOf=it=>{const cx=it.x+(it.w||0)/2;let i=0;while(i<bounds.length&&cx>=bounds[i])i++;return cols[i].k};
+    let bottom=-1;
+    items.forEach(i=>{if(i.y<headerY-4&&(i.s==='TOTAL'||/^ENTREGE\b/i.test(i.s)||/^RECIBI\b/i.test(i.s)||/^Ruc\b/i.test(i.s)||/^Correo\b/i.test(i.s)))bottom=Math.max(bottom,i.y)});
+    const dataItems=items.filter(i=>i.y<headerY-4&&i.y>bottom+2);
+    const anchors=dataItems.filter(i=>reFecha.test(i.s)&&colOf(i)==='fecha').sort((a,b)=>b.y-a.y);
+    const hc={};cols.forEach(c=>hc[c.k]=c.c);
+    const ctr=i=>i.x+(i.w||0)/2;
+    anchors.forEach((an,idx)=>{
+      const yTop=an.y+5,yBot=idx+1<anchors.length?anchors[idx+1].y+5:(bottom>-1?bottom+2:-1);
+      const rowItems=dataItems.filter(i=>i.y<=yTop&&i.y>yBot).sort((a,b)=>(b.y-a.y)||(a.x-b.x));
+      const cells={};rowItems.forEach(i=>{const k=colOf(i);(cells[k]=cells[k]||[]).push(i)});
+      const joinT=(k,sep)=>(cells[k]||[]).filter(i=>i!==an).map(i=>i.s).join(sep);
+      const nearest=(re,key,min,max)=>{let best=null,bd=1e9;rowItems.forEach(i=>{if(!re.test(i.s))return;const cx=ctr(i);if(min!==undefined&&cx<min)return;if(max!==undefined&&cx>=max)return;const d=Math.abs(cx-hc[key]);if(d<bd){bd=d;best=i}});return best?best.s:''};
+      const bActaUa=hc.ua!==undefined&&hc.acta!==undefined?(hc.acta+hc.ua)/2:undefined;
+      const bValTipo=hc.tipo!==undefined?(hc.valor+hc.tipo)/2:undefined;
+      const [dd,mm,yy]=an.s.split('/');
+      const codigo=joinT('codigo','').replace(/\s+/g,'');if(!codigo)return;
+      const valorS=nearest(reValor,'valor');
+      const tipo=(nearest(reTipo,'tipo')||'ENTREGA').toUpperCase().replace('Ó','O');
+      const actaS=hc.acta!==undefined?nearest(reActa,'acta',bValTipo,bActaUa):'';
+      const estado=nearest(reEstado,hc.estAct!==undefined?'estAct':'estEntr')||'Bueno';
+      const ua=hc.ua!==undefined?nearest(/^\d{5,}$/,'ua',bActaUa):'';
+      bienes.push({fecha_ingreso:`${yy}-${mm}-${dd}`,codigo,descripcion:joinT('desc',' ').replace(/\s+/g,' '),
+        marca:joinT('marca',' '),modelo:joinT('modelo',' '),serie:joinT('serie','').replace(/\s+/g,''),
+        valor:parseNum(valorS),tipo_ingreso:tipo,acta:actaS.replace(/[.,]/g,''),
+        estado:estado[0].toUpperCase()+estado.slice(1).toLowerCase(),
+        obs:(joinT('obs',' ').replace(/\s+/g,' ')+(ua&&ua!=='0'?' Usr.ant.:'+ua:'')).trim(),
+        ubicacion:guessUbic(joinT('desc',' ')+' '+joinT('obs',' ')),
+        vida_util_anios:guessVida(codigo)});
+    });
+  }
+  return{nombre,ci,bienes};
+}
+function guessVida(c){if(c.startsWith('9.'))return 0;if(c.startsWith('1.4.1.01.05'))return 5;if(c.startsWith('1.4.1.01.07'))return 5;return 10}
+function guessUbic(txt){let m=txt.match(/ESTACI[ÓO]N\s+DE\s+BOMBEO\s+N\s*[°º]?\s*\d+\s*(\([^)]*\))?/i);if(m)return m[0].replace(/\s+/g,' ').trim();m=txt.match(/Estaci[óo]n\s+Militar\s+N\s*[°ºo]?\s*\d+/i);if(m)return m[0].replace(/\s+/g,' ').trim();m=txt.match(/\(EB(\d+)\)/i);if(m)return'EBAR N°'+m[1];return'Por asignar'}
+
+let _importData=null;
+function showImportPreview(data){
+  _importData=data;
+  const existMap={};_bienes.forEach(b=>existMap[b.codigo]=b);
+  _importData.existMap=existMap;
+  const nNuevos=data.bienes.filter(b=>!existMap[b.codigo]).length;
+  const nUpd=data.bienes.length-nNuevos;
+  const total=data.bienes.reduce((s,b)=>s+b.valor,0);
+  modal(`<h3>Vista previa — ${data.bienes.length} bienes detectados</h3>
+  <p class="muted" style="margin-bottom:10px">${nNuevos} nuevos · ${nUpd} para actualizar · Total $${fmt$(total)}${data.nombre?' · Custodio: <strong>'+esc(data.nombre)+'</strong>':''}</p>
+  <div style="max-height:320px;overflow-y:auto;border:1.5px solid var(--line);border-radius:var(--r)">
+  <table><thead><tr><th><input type="checkbox" checked onchange="document.querySelectorAll('.imp-chk').forEach(c=>{c.checked=this.checked})"></th>
+  <th>Acción</th><th>Código</th><th>Descripción</th><th class="money">Valor</th><th>Ubicación</th></tr></thead><tbody>
+  ${data.bienes.map((b,i)=>{
+    const ex=existMap[b.codigo];
+    const cambioV=ex&&Math.abs(Number(ex.valor)-b.valor)>0.005;
+    return`<tr>
+      <td><input type="checkbox" class="imp-chk" data-i="${i}" checked></td>
+      <td>${ex?'<span class="badge b-reg">Actualizar</span>':'<span class="badge b-good">Nuevo</span>'}</td>
+      <td class="code-cell">${esc(b.codigo)}</td>
+      <td>${esc(b.descripcion)}<br><span class="muted">${esc(b.marca)} ${esc(b.modelo)}</span></td>
+      <td class="money">${cambioV?'<s style="color:var(--red)">$'+fmt$(ex.valor)+'</s> ':''}$${fmt$(b.valor)}</td>
+      <td><input style="min-width:120px;padding:4px 7px;font-size:12px;border:1px solid var(--line);border-radius:6px" class="imp-ubic" data-i="${i}" value="${esc(ex&&ex.ubicacion!=='Por asignar'?ex.ubicacion:b.ubicacion)}"></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div>
+  <p class="muted" style="margin-top:10px;font-size:12px">Los bienes marcados como "Actualizar" conservan su historial y mantenimientos. Solo se corrigen los datos del PDF.</p>
+  <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+  <button class="btn btn-primary" onclick="confirmImport()">Importar seleccionados</button></div>`);
+}
+
+async function confirmImport(){
+  document.querySelectorAll('.imp-ubic').forEach(inp=>{_importData.bienes[inp.dataset.i].ubicacion=inp.value.trim()||'Por asignar'});
+  let nNuevos=0,nUpd=0;
+  for(const chk of document.querySelectorAll('.imp-chk:checked')){
+    const b=_importData.bienes[chk.dataset.i];
+    const ex=_importData.existMap[b.codigo];
+    const payload={descripcion:b.descripcion,marca:b.marca,modelo:b.modelo,serie:b.serie,
+      fecha_ingreso:b.fecha_ingreso,valor:b.valor,tipo_ingreso:b.tipo_ingreso,acta:b.acta,
+      ubicacion:b.ubicacion,estado:b.estado,vida_util_anios:b.vida_util_anios,
+      es_control_admin:b.vida_util_anios===0,obs:b.obs,importado_pdf:true};
+    if(ex){
+      await sb.from('bienes').update(payload).eq('id',ex.id);
+      if(b.ubicacion&&b.ubicacion!=='Por asignar'&&b.ubicacion!==ex.ubicacion){
+        await sb.from('traslados').insert({bien_id:ex.id,user_id:_user.id,fecha:hoy(),tipo:'TRASLADO INTERNO',
+          de_ubicacion:ex.ubicacion,a_ubicacion:b.ubicacion,motivo:'Actualización desde PDF'});
+      }
+      nUpd++;
+    } else {
+      if(!isPro()&&(_bienes.filter(x=>x.activo).length+nNuevos)>=maxB()){
+        toast(`Límite de ${maxB()} bienes alcanzado. Se omitieron los restantes.`,true);break;
+      }
+      const {data,error}=await sb.from('bienes').insert({...payload,codigo:b.codigo,user_id:_user.id,activo:true}).select().single();
+      if(!error&&data){
+        await sb.from('traslados').insert({bien_id:data.id,user_id:_user.id,fecha:b.fecha_ingreso,
+          tipo:b.tipo_ingreso,de_ubicacion:'—',a_ubicacion:b.ubicacion,acta:b.acta,motivo:'Importado desde PDF'});
+        nNuevos++;
+      }
+    }
+  }
+  await loadData();closeModal();toast(`${nNuevos} bienes nuevos · ${nUpd} actualizados.`);
+}
+
+// ── EXPORTACIONES (reutilizadas del sistema anterior) ─────────
+function filteredBienes(){
+  const q=(el('q-bienes')?.value||'').toLowerCase();
+  const fe=el('f-estado')?.value||'';
+  return _bienes.filter(b=>{
+    if(fe==='Baja'&&b.activo)return false;
+    if(fe&&fe!=='Baja'&&(b.estado!==fe||!b.activo))return false;
+    if(!fe&&!b.activo)return false;
+    return[b.codigo,b.descripcion,b.serie,b.marca,b.modelo,b.ubicacion].join(' ').toLowerCase().includes(q);
+  });
+}
+const dl=(name,content,type)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)};
+const csvRow=arr=>arr.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';');
+
+function exportCSV(tipo){
+  let rows=[],name='';
+  if(tipo==='constatacion'){
+    name='constatacion_fisica_'+hoy()+'.csv';
+    rows.push(csvRow(['N°','Código','Descripción','Serie','Ubicación registrada','¿Verificado?','Ubicación real','Estado verificado','Observaciones']));
+    filteredBienes().filter(b=>b.activo).forEach((b,i)=>rows.push(csvRow([i+1,b.codigo,b.descripcion,b.serie,b.ubicacion,'','','',''])));
+  }
+  dl(name,rows.join('\r\n'),'text/csv;charset=utf-8');
+}
+function backupJSON(){dl('respaldo_misbienes_'+hoy()+'.json',JSON.stringify({bienes:_bienes,traslados:_traslados,mantenimientos:_mantenimientos},null,2),'application/json')}
+function restoreJSON(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);alert('Respaldo leído: '+d.bienes?.length+' bienes. La restauración completa requiere soporte.');} catch(e){toast('Archivo inválido.',true)}};
+  r.readAsText(f);
+}
+
+function exportExcelBienes(){
+  const rows=filteredBienes();if(!rows.length){toast('Sin bienes para exportar.',true);return}
+  const marcaAgua=isPro()?'':'— Exportado con MisBienes Gratis — ';
+  const tdL='border:0.5pt solid #b8c8c4;padding:4px 6px;vertical-align:top;font-size:10pt;';
+  const tdR=tdL+'text-align:right;';
+  const th='border:0.5pt solid #0a4d42;padding:6px;background:#0a4d42;color:#fff;font-weight:bold;font-size:9pt;';
+  let body='';
+  rows.forEach(b=>{
+    const v=vida(b);
+    body+=`<tr>
+      <td style="${tdL}font-family:Consolas">${esc(b.codigo)}</td><td style="${tdL}">${esc(b.descripcion)}</td>
+      <td style="${tdL}">${esc(b.marca||'')} ${esc(b.modelo||'')}</td><td style="${tdL}font-family:Consolas">${esc(b.serie||'—')}</td>
+      <td style="${tdL}">${esc(b.ubicacion||'—')}</td><td style="${tdL}text-align:center">${fmtD(b.fecha_ingreso)}</td>
+      <td style="${tdL}text-align:center;${b.activo?b.estado==='Bueno'?'background:#dcfce7;color:#166534':b.estado==='Regular'?'background:#fef9c3;color:#854d0e':'background:#fee2e2;color:#b91c1c':'opacity:.5'}">${b.activo?b.estado:'BAJA'}</td>
+      <td style="${tdL}text-align:center">${v?v.pct.toFixed(0)+'%':(b.es_control_admin?'Control adm.':'—')}</td>
+      <td style="${tdR}">${b.valor.toFixed(2)}</td><td style="${tdR}">${v?v.libros.toFixed(2):''}</td>
+    </tr>`;
+  });
+  const totV=rows.reduce((s,b)=>s+Number(b.valor),0);
+  const totL=rows.reduce((s,b)=>{const v=vida(b);return s+(v?v.libros:Number(b.valor))},0);
+  const html=`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>
+  <table><tr><td colspan="10" style="font-size:13pt;font-weight:bold;color:#0a4d42">G.A.D. MUNICIPAL FRANCISCO DE ORELLANA — MisBienes ${marcaAgua}</td></tr>
+  <tr><td colspan="10" style="font-size:11pt;font-weight:bold">CONTROL DE BIENES DE LARGA DURACIÓN — ${esc(_profile?.nombre_completo||'')} — ${hoy()}</td></tr>
+  <tr><td colspan="10"></td></tr>
+  <tr><th style="${th}">Código</th><th style="${th}">Descripción</th><th style="${th}">Marca/Modelo</th><th style="${th}">Serie</th><th style="${th}">Ubicación</th><th style="${th}">F.Ingreso</th><th style="${th}">Estado</th><th style="${th}">Vida útil</th><th style="${th};text-align:right">Valor</th><th style="${th};text-align:right">V.Libros</th></tr>
+  ${body}
+  <tr><td colspan="8" style="font-weight:bold;text-align:right;background:#edf3f2">TOTAL</td><td style="${tdR}font-weight:bold;background:#edf3f2">${totV.toFixed(2)}</td><td style="${tdR}font-weight:bold;background:#edf3f2">${totL.toFixed(2)}</td></tr>
+  </table></body></html>`;
+  dl('inventario_bienes_'+hoy()+'.xls',html,'application/vnd.ms-excel');
+}
+
+async function exportPDFBienes(){
+  const rows=filteredBienes();if(!rows.length){toast('Sin bienes para exportar.',true);return}
+  try{await loadJsPDF()}catch(e){toast('Sin conexión para descargar librería PDF.',true);return}
+  const TEAL=[10,77,66];const GBG=[220,252,231];const GTX=[22,101,52];const ABG=[254,249,195];const ATX=[133,77,14];const RBG=[254,226,226];const RTX=[185,28,28];const GRIS=[237,243,242];
+  const meta=rows.map(b=>{const v=vida(b);return{est:b.activo?b.estado:'BAJA',pct:v?v.pct:null}});
+  const body=rows.map(b=>{const v=vida(b);return[b.codigo,b.descripcion,(b.marca+' '+b.modelo).trim(),b.serie||'—',b.ubicacion||'—',fmtD(b.fecha_ingreso),b.activo?b.estado:'BAJA',v?v.pct.toFixed(0)+'%':(b.es_control_admin?'Control':'—'),fmt$(b.valor),v?fmt$(v.libros):'']});
+  const totV=rows.reduce((s,b)=>s+Number(b.valor),0);
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  doc.autoTable({
+    head:[['Código','Descripción','Marca/Modelo','Serie','Ubicación','F.Ingreso','Estado','Vida útil','Valor','V.Libros']],
+    body,foot:[['','','','','','','','TOTAL',fmt$(totV),'']],
+    startY:26,margin:{top:26,left:8,right:8,bottom:14},
+    styles:{fontSize:6.5,cellPadding:1.3,overflow:'linebreak',lineColor:[184,200,196],lineWidth:0.15,textColor:[15,31,28]},
+    headStyles:{fillColor:TEAL,textColor:255,fontSize:6.5,fontStyle:'bold'},
+    footStyles:{fillColor:GRIS,textColor:[15,31,28],fontStyle:'bold',halign:'right'},
+    columnStyles:{0:{cellWidth:28,font:'courier',fontSize:6},1:{cellWidth:50},2:{cellWidth:24},3:{cellWidth:24,font:'courier',fontSize:6},4:{cellWidth:26},5:{cellWidth:14,halign:'center'},6:{cellWidth:13,halign:'center'},7:{cellWidth:14,halign:'center'},8:{cellWidth:16,halign:'right',font:'courier',fontSize:6},9:{cellWidth:16,halign:'right',font:'courier',fontSize:6}},
+    didParseCell:d=>{
+      if(d.section!=='body')return;
+      const m=meta[d.row.index];
+      if(d.column.index===6){const e=m.est;d.cell.styles.fontStyle='bold';if(e==='Bueno'){d.cell.styles.fillColor=GBG;d.cell.styles.textColor=GTX}else if(e==='Regular'){d.cell.styles.fillColor=ABG;d.cell.styles.textColor=ATX}else{d.cell.styles.fillColor=RBG;d.cell.styles.textColor=RTX}}
+      if(d.column.index===7&&m.pct!==null){if(m.pct>=100){d.cell.styles.fillColor=RBG;d.cell.styles.textColor=RTX;d.cell.styles.fontStyle='bold'}else if(m.pct>=80){d.cell.styles.fillColor=ABG;d.cell.styles.textColor=ATX;d.cell.styles.fontStyle='bold'}}
+    },
+    didDrawPage:()=>{
+      const marcaAgua=isPro()?'':'· Plan Gratis — misbienes.ec';
+      doc.setTextColor(10,77,66);doc.setFont('helvetica','bold');doc.setFontSize(11);
+      doc.text('CONTROL DE BIENES DE LARGA DURACIÓN — MisBienes',8,11);
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(61,90,84);
+      doc.text(`${_profile?.nombre_completo||''} · ${_profile?.institucion||''} · ${hoy()} ${marcaAgua}`,8,17);
+      const ph=doc.internal.pageSize.getHeight(),pw=doc.internal.pageSize.getWidth();
+      doc.setFontSize(7);doc.text('Pág. '+doc.internal.getNumberOfPages(),pw-8,ph-7,{align:'right'});
+    }
+  });
+  if(!isPro()){
+    doc.setFontSize(8);doc.setTextColor(180,100,0);
+    doc.text('Exportado con MisBienes Plan Gratis · misbienes.ec',doc.internal.pageSize.getWidth()/2,doc.internal.pageSize.getHeight()-4,{align:'center'});
+  }
+  doc.save('misbienes_inventario_'+hoy()+'.pdf');
+}
+
+let _jspdfPromise=null;
+function loadJsPDF(){
+  if(window.jspdf?.jsPDF?.API?.autoTable)return Promise.resolve();
+  if(_jspdfPromise)return _jspdfPromise;
+  const add=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('cdn'));document.head.appendChild(s)});
+  _jspdfPromise=add('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').then(()=>add('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')).catch(e=>{_jspdfPromise=null;throw e});
+  return _jspdfPromise;
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+el('year').textContent = new Date().getFullYear();
+// Animar ticker al cargar
+setTimeout(animateTicker, 400);
+// Verificar si ya hay sesión activa
+sb.auth.getSession().then(({data:{session}})=>{
+  if(session){_user=session.user;loadProfile().then(()=>showApp())}
+  else showLanding();
+});
+</script>
+</body>
+</html>
