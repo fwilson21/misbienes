@@ -143,6 +143,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 .app-logo span{color:var(--amber)}
 .app-plan-badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,.15)}
 .app-plan-badge.pro{background:rgba(217,119,6,.4);color:#fde68a}
+.app-plan-badge.admin{background:rgba(139,92,246,.5);color:#e9d5ff}
 .app-user{font-size:13px;opacity:.8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .btn-logout{background:rgba(255,255,255,.12);border:none;color:#fff;font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer}
 .btn-logout:hover{background:rgba(255,255,255,.22)}
@@ -413,6 +414,7 @@ tr:hover td{background:#f7faf9}
     <button class="app-nav-btn"        data-tab="traslados" onclick="appTab(this)"><span class="ni">🔄</span>Traslados</button>
     <button class="app-nav-btn"        data-tab="mant"     onclick="appTab(this)"><span class="ni">🔧</span>Mantenimiento</button>
     <button class="app-nav-btn"        data-tab="reportes" onclick="appTab(this)"><span class="ni">⬇</span>Exportar</button>
+    <button class="app-nav-btn hidden" data-tab="admin"    onclick="appTab(this)" id="nav-admin"><span class="ni">⚙️</span>Admin</button>
   </nav>
 
   <main class="app-body">
@@ -477,6 +479,36 @@ tr:hover td{background:#f7faf9}
       </div>
     </section>
 
+    <!-- ADMIN -->
+    <section id="at-admin" class="hidden">
+      <div class="panel">
+        <div class="panel-title">👥 Usuarios registrados</div>
+        <div class="toolbar" style="margin-bottom:12px">
+          <input type="text" id="q-admin" placeholder="Buscar por nombre, cédula, institución…" oninput="renderAdmin()">
+          <select id="f-admin-plan" onchange="renderAdmin()">
+            <option value="">Todos los planes</option>
+            <option value="gratis">Gratis</option>
+            <option value="pro">Pro</option>
+            <option value="fundador">Fundador</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="exportAdminCSV()">⬇ Exportar CSV</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Nombre</th><th>Cédula</th><th>Institución</th><th>Plan</th>
+              <th>Bienes</th><th>Vence</th><th>Último acceso</th><th>Acciones</th>
+            </tr></thead>
+            <tbody id="tb-admin"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">📈 Resumen del negocio</div>
+        <div class="kpis" id="kpis-admin"></div>
+      </div>
+    </section>
+
     <!-- REPORTES -->
     <section id="at-reportes" class="hidden">
       <div class="panel">
@@ -514,11 +546,11 @@ tr:hover td{background:#f7faf9}
 
 // ── CONFIGURACIÓN ────────────────────────────────────────────
 // REEMPLAZA estos valores con los de tu proyecto Supabase:
-const SUPABASE_URL  = 'https://ccwmkuxismgqaswsezur.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjd21rdXhpc21ncWFzd3NlenVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzMDcyODgsImV4cCI6MjA5Njg4MzI4OH0.hsTadgV669pErVjv5T6MML0DMJEi4mMjV8BfvF2Jzag';
+const SUPABASE_URL  = 'https://TUPROYECTO.supabase.co';
+const SUPABASE_ANON = 'TU_ANON_KEY_AQUI';
 // URL del Web App de Google Apps Script:
-const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbw0uLnm7Im7D5XILlskV7Fj0ThmWpOUdZbD4ZDkaV2x-7MfUFdKmzwaJSKBPmaf48I/exec';
-const DRIVE_TOKEN   = 'mb_2026_xK9mP3qR7wL2nF8'; // el mismo que en el .gs
+const DRIVE_API_URL = 'https://script.google.com/macros/s/TU_SCRIPT_ID/exec';
+const DRIVE_TOKEN   = 'TU_TOKEN_SECRETO'; // el mismo que en el .gs
 // ─────────────────────────────────────────────────────────────
 
 const { createClient } = supabase;
@@ -537,7 +569,16 @@ const fmtD = s => {if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/
 const fmt$ = n => Number(n||0).toLocaleString('es-EC',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc  = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const el   = id => document.getElementById(id);
-const isPro = () => _profile?.plan === 'pro' || _profile?.plan === 'fundador';
+const isPro  = () => _profile?.plan === 'pro' || _profile?.plan === 'fundador';
+const isAdmin = () => _profile?.es_admin === true;
+// La licencia es válida si: es admin, es gratis, o es pro con licencia_fin null o futura
+const licenciaValida = () => {
+  if(!_profile) return false;
+  if(isAdmin()) return true;
+  if(_profile.plan === 'gratis') return true;
+  if(!_profile.licencia_fin) return true; // null = nunca vence
+  return new Date(_profile.licencia_fin) > new Date();
+};
 const maxB  = () => _profile?.max_bienes ?? 25;
 
 function toast(msg, err=false){
@@ -633,8 +674,19 @@ async function loadProfile(){
     _profile = data;
     el('app-user-name').textContent = data.nombre_completo||_user.email;
     const badge = el('plan-badge');
-    badge.textContent = data.plan==='pro'?'Pro':data.plan==='fundador'?'Fundador':'Gratis';
-    badge.classList.toggle('pro', data.plan!=='gratis');
+    if(data.es_admin){
+      badge.textContent = '⚙ Admin';
+      badge.classList.add('admin');
+      badge.classList.remove('pro');
+      el('nav-admin').classList.remove('hidden'); // mostrar pestaña admin
+    } else if(data.plan==='pro'||data.plan==='fundador'){
+      badge.textContent = data.plan==='fundador'?'Fundador':'Pro';
+      badge.classList.add('pro');
+      badge.classList.remove('admin');
+    } else {
+      badge.textContent = 'Gratis';
+      badge.classList.remove('pro','admin');
+    }
   }
 }
 
@@ -656,9 +708,10 @@ async function loadData(){
 function appTab(btn){
   document.querySelectorAll('.app-nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  const tabs=['panel','bienes','traslados','mant','reportes'];
+  const tabs=['panel','bienes','traslados','mant','reportes','admin'];
   tabs.forEach(t=>el('at-'+t).classList.toggle('hidden',t!==btn.dataset.tab));
   renderAll();
+  if(btn.dataset.tab==='admin') renderAdmin();
 }
 
 // ── VIDA ÚTIL (depreciación línea recta, residual 10%) ───────
@@ -681,8 +734,8 @@ function renderPanel(){
   const venc = act.filter(b=>{const v=vida(b);return v&&v.pct>=100}).length;
   const porV = act.filter(b=>{const v=vida(b);return v&&v.pct>=80&&v.pct<100}).length;
 
-  // Barra límite plan gratis
-  if(!isPro()){
+  // Barra límite: solo para plan gratis sin ser admin
+  if(!isPro()&&!isAdmin()){
     const n=act.length, max=maxB(), pct=Math.min(100,n/max*100);
     el('limit-wrap').classList.remove('hidden');
     el('limit-txt').textContent=`${n} de ${max} bienes usados (plan Gratis)`;
@@ -787,9 +840,9 @@ async function openDetalle(id){
   const hist=_traslados.filter(t=>t.bien_id===id).sort((a,c)=>a.fecha.localeCompare(c.fecha));
   const mts=_mantenimientos.filter(m=>m.bien_id===id);
 
-  // Cargar fotos si es Pro
+  // Cargar fotos si es Pro o Admin
   let fotosHTML='';
-  if(isPro()){
+  if(isPro()||isAdmin()){
     const {data:fotos}=await sb.from('bien_fotos').select('*').eq('bien_id',id).order('tomada_en',{ascending:false});
     if(fotos&&fotos.length){
       fotosHTML=`<div class="foto-grid">${fotos.map(f=>`
@@ -880,8 +933,8 @@ async function saveBien(id){
   let error;
   if(id){({error}=await sb.from('bienes').update(payload).eq('id',id))}
   else{
-    // Verificar límite de plan gratis
-    if(!isPro()&&_bienes.filter(b=>b.activo).length>=maxB()){
+    // Verificar límite de plan gratis (admin no tiene límite)
+    if(!isPro()&&!isAdmin()&&_bienes.filter(b=>b.activo).length>=maxB()){
       toast(`Límite de ${maxB()} bienes alcanzado. Actualiza a Pro para bienes ilimitados.`,true);return;
     }
     const {data,error:e}=await sb.from('bienes').insert(payload).select().single();
@@ -1157,7 +1210,7 @@ async function confirmImport(){
       }
       nUpd++;
     } else {
-      if(!isPro()&&(_bienes.filter(x=>x.activo).length+nNuevos)>=maxB()){
+      if(!isPro()&&!isAdmin()&&(_bienes.filter(x=>x.activo).length+nNuevos)>=maxB()){
         toast(`Límite de ${maxB()} bienes alcanzado. Se omitieron los restantes.`,true);break;
       }
       const {data,error}=await sb.from('bienes').insert({...payload,codigo:b.codigo,user_id:_user.id,activo:true}).select().single();
@@ -1204,7 +1257,7 @@ function restoreJSON(input){
 
 function exportExcelBienes(){
   const rows=filteredBienes();if(!rows.length){toast('Sin bienes para exportar.',true);return}
-  const marcaAgua=isPro()?'':'— Exportado con MisBienes Gratis — ';
+  const marcaAgua=(isPro()||isAdmin())?'':'— Exportado con MisBienes Gratis — ';
   const tdL='border:0.5pt solid #b8c8c4;padding:4px 6px;vertical-align:top;font-size:10pt;';
   const tdR=tdL+'text-align:right;';
   const th='border:0.5pt solid #0a4d42;padding:6px;background:#0a4d42;color:#fff;font-weight:bold;font-size:9pt;';
@@ -1257,7 +1310,7 @@ async function exportPDFBienes(){
       if(d.column.index===7&&m.pct!==null){if(m.pct>=100){d.cell.styles.fillColor=RBG;d.cell.styles.textColor=RTX;d.cell.styles.fontStyle='bold'}else if(m.pct>=80){d.cell.styles.fillColor=ABG;d.cell.styles.textColor=ATX;d.cell.styles.fontStyle='bold'}}
     },
     didDrawPage:()=>{
-      const marcaAgua=isPro()?'':'· Plan Gratis — misbienes.ec';
+      const marcaAgua=(isPro()||isAdmin())?'':'· Plan Gratis — misbienes.ec';
       doc.setTextColor(10,77,66);doc.setFont('helvetica','bold');doc.setFontSize(11);
       doc.text('CONTROL DE BIENES DE LARGA DURACIÓN — MisBienes',8,11);
       doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(61,90,84);
@@ -1266,7 +1319,7 @@ async function exportPDFBienes(){
       doc.setFontSize(7);doc.text('Pág. '+doc.internal.getNumberOfPages(),pw-8,ph-7,{align:'right'});
     }
   });
-  if(!isPro()){
+  if(!isPro()&&!isAdmin()){
     doc.setFontSize(8);doc.setTextColor(180,100,0);
     doc.text('Exportado con MisBienes Plan Gratis · misbienes.ec',doc.internal.pageSize.getWidth()/2,doc.internal.pageSize.getHeight()-4,{align:'center'});
   }
@@ -1282,7 +1335,108 @@ function loadJsPDF(){
   return _jspdfPromise;
 }
 
-// ── INIT ──────────────────────────────────────────────────────
+// ── PANEL DE ADMINISTRACIÓN ───────────────────────────────────
+let _adminUsers = [];
+
+async function renderAdmin(){
+  if(!isAdmin()) return;
+  // Cargar todos los perfiles (solo admin puede con service role, 
+  // pero usamos política especial para admins)
+  const {data,error} = await sb.from('profiles')
+    .select('id, nombre_completo, cedula, institucion, plan, max_bienes, licencia_fin, licencia_activa, ultimo_acceso, es_admin')
+    .order('creado_en', {ascending:false});
+  if(error){toast('Error cargando usuarios: '+error.message,true);return}
+  _adminUsers = data||[];
+
+  // Filtros
+  const q=(el('q-admin')?.value||'').toLowerCase();
+  const fp=el('f-admin-plan')?.value||'';
+  const rows=_adminUsers.filter(u=>{
+    if(fp&&u.plan!==fp)return false;
+    return[u.nombre_completo,u.cedula,u.institucion].join(' ').toLowerCase().includes(q);
+  });
+
+  // KPIs del negocio
+  const total=_adminUsers.length;
+  const pros=_adminUsers.filter(u=>u.plan==='pro'||u.plan==='fundador').length;
+  const gratis=_adminUsers.filter(u=>u.plan==='gratis').length;
+  const ingresos=pros*30; // estimado base
+  el('kpis-admin').innerHTML=`
+    <div class="kpi"><div class="v">${total}</div><div class="l">Usuarios totales</div></div>
+    <div class="kpi"><div class="v">${gratis}</div><div class="l">Plan Gratis</div></div>
+    <div class="kpi"><div class="v" style="color:var(--teal)">${pros}</div><div class="l">Plan Pro / Fundador</div></div>
+    <div class="kpi"><div class="v" style="color:var(--teal)">$${fmt$(ingresos)}</div><div class="l">Ingresos estimados/año</div></div>`;
+
+  // Tabla de usuarios
+  el('tb-admin').innerHTML=rows.map(u=>{
+    const vence=u.licencia_fin?fmtD(u.licencia_fin.slice(0,10)):'Sin límite';
+    const vencido=u.licencia_fin&&new Date(u.licencia_fin)<new Date();
+    const planBadge=u.es_admin?'<span class="badge b-ctrl">Admin</span>':
+      u.plan==='pro'?'<span class="badge b-good">Pro</span>':
+      u.plan==='fundador'?'<span class="badge" style="background:#f3e8ff;color:#7e22ce">Fundador</span>':
+      '<span class="badge b-reg">Gratis</span>';
+    const bienesCount=_adminUsers.filter(x=>x.id===u.id).length; // placeholder
+    return`<tr>
+      <td><strong>${esc(u.nombre_completo||'—')}</strong></td>
+      <td class="code-cell">${esc(u.cedula||'—')}</td>
+      <td>${esc(u.institucion||'—')}</td>
+      <td>${planBadge}</td>
+      <td class="money">—</td>
+      <td class="code-cell" style="${vencido?'color:var(--red);font-weight:600':''}">${vence}</td>
+      <td class="muted code-cell">${u.ultimo_acceso?fmtD(u.ultimo_acceso.slice(0,10)):'Nunca'}</td>
+      <td>
+        ${!u.es_admin&&u.plan!=='pro'?`<button class="btn btn-primary btn-sm" onclick="activarPro('${u.id}','${esc(u.nombre_completo||'')}')">Activar Pro</button>`:''}
+        ${!u.es_admin&&u.plan==='pro'?`<button class="btn btn-ghost btn-sm" onclick="revocarPro('${u.id}','${esc(u.nombre_completo||'')}')">Revocar Pro</button>`:''}
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" class="muted" style="text-align:center;padding:20px">Sin usuarios.</td></tr>';
+}
+
+async function activarPro(userId, nombre){
+  const meses=prompt(`Activar Pro para ${nombre}.\n¿Cuántos meses? (12 = 1 año, 0 = sin límite):`);
+  if(meses===null)return;
+  const m=parseInt(meses)||12;
+  const fin=m===0?null:new Date(Date.now()+m*30*24*3600*1000).toISOString().slice(0,10);
+  const {error}=await sb.from('profiles').update({
+    plan:'pro', max_bienes:2147483647,
+    licencia_inicio:hoy(), licencia_fin:fin, licencia_activa:true
+  }).eq('id',userId);
+  if(error){toast(error.message,true);return}
+  // Registrar pago manual
+  await sb.from('pagos').insert({
+    user_id:userId, monto:m===0?0:30, plan:'pro',
+    meses:m===0?9999:m, metodo:'otro',
+    referencia:'Activación manual por admin',
+    estado:'confirmado', confirmado_en:new Date().toISOString()
+  });
+  toast(`Pro activado para ${nombre}.`);
+  renderAdmin();
+}
+
+async function revocarPro(userId, nombre){
+  if(!confirm(`¿Revocar plan Pro de ${nombre} y pasar a Gratis?`))return;
+  const {error}=await sb.from('profiles').update({
+    plan:'gratis', max_bienes:25, licencia_fin:hoy(), licencia_activa:false
+  }).eq('id',userId);
+  if(error){toast(error.message,true);return}
+  toast(`Plan Pro revocado para ${nombre}.`);
+  renderAdmin();
+}
+
+function exportAdminCSV(){
+  if(!_adminUsers.length){toast('Sin usuarios para exportar.',true);return}
+  const rows=[['Nombre','Cédula','Institución','Plan','Licencia vence','Activa','Es admin']];
+  _adminUsers.forEach(u=>rows.push([
+    u.nombre_completo,u.cedula,u.institucion,u.plan,
+    u.licencia_fin||'Sin límite',u.licencia_activa?'Sí':'No',u.es_admin?'Sí':'No'
+  ]));
+  dl('misbienes_usuarios_'+hoy()+'.csv',
+    rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n'),
+    'text/csv;charset=utf-8');
+}
+
+// Política RLS para que admin pueda leer todos los perfiles
+// (esto se agrega en Supabase — ver instrucciones al final)
 el('year').textContent = new Date().getFullYear();
 // Animar ticker al cargar
 setTimeout(animateTicker, 400);
